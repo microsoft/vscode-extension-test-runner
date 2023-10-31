@@ -272,25 +272,30 @@ export class Controller {
     const oldRunHandlers = this.runProfiles;
     this.runProfiles = new Map();
     for (const [index, { config }] of configs.value.entries()) {
-      const name = config.label || `Config #${index + 1}`;
+      const originalName = config.label || `Config #${index + 1}`;
+      let name = originalName;
+      for (let i = 2; this.runProfiles.has(name); i++) {
+        name = `${originalName} #${i}`;
+      }
 
       const prev = oldRunHandlers.get(name);
       if (prev) {
         this.runProfiles.set(name, prev);
         oldRunHandlers.delete(name);
-      } else {
-        const run = this.runner.makeHandler(this.ctrl, this.configFile, index, false);
-        const debug = this.runner.makeHandler(this.ctrl, this.configFile, index, true);
-        const profiles = [
-          this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, run, true),
-          this.ctrl.createRunProfile(`${name} Debug`, vscode.TestRunProfileKind.Debug, debug, true),
-        ];
-        for (const profile of profiles) {
-          profile.tag = new vscode.TestTag(`${index}`);
-        }
-
-        this.runProfiles.set(name, profiles);
+        continue;
       }
+
+      const run = this.runner.makeHandler(this.ctrl, this.configFile, index, false);
+      const debug = this.runner.makeHandler(this.ctrl, this.configFile, index, true);
+      const profiles = [
+        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, run, true),
+        this.ctrl.createRunProfile(`${name} Debug`, vscode.TestRunProfileKind.Debug, debug, true),
+      ];
+      for (const profile of profiles) {
+        profile.tag = new vscode.TestTag(`${index}`);
+      }
+
+      this.runProfiles.set(name, profiles);
     }
 
     for (const profiles of oldRunHandlers.values()) {
