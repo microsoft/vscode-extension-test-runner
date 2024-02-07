@@ -29,9 +29,7 @@ export class Coverage {
     if (existsSync(coverageFile)) {
       try {
         const contents = JSON.parse(await fs.readFile(coverageFile, 'utf8'));
-        const coverage = new IstanbulCoverage(contents);
-        coverage.booleanCounts = true;
-        run.coverageProvider = coverage;
+        run.coverageProvider = new CoverageProvider(contents);
       } catch (e) {
         vscode.window.showWarningMessage(`Error parsing test coverage: ${e}`);
       }
@@ -53,5 +51,14 @@ export class Coverage {
     }
 
     await fs.rm(this.targetDir, { recursive: true, force: true });
+  }
+}
+
+class CoverageProvider extends IstanbulCoverage {
+  public booleanCounts = true;
+
+  override mapLocation(compiledUri: vscode.Uri, l: number, c: number) {
+    // V8/sourcemaps can sometimes result in negative l/c when converting to base1:
+    return super.mapLocation(compiledUri, Math.max(0, l), Math.max(0, c));
   }
 }
