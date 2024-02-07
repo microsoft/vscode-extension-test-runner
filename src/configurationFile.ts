@@ -13,7 +13,6 @@ import { DisposableStore } from './disposable';
 import { CliPackageMissing, ConfigProcessReadError, HumanError } from './errors';
 
 export interface IResolvedConfiguration {
-  files: string[];
   env: Record<string, string>;
   extensionTestsPath: string;
   extensionDevelopmentPath: string;

@@ -9,6 +9,7 @@ import split2 from 'split2';
 import * as vscode from 'vscode';
 import { ConfigValue } from './configValue';
 import { ConfigurationFile, IResolvedConfiguration } from './configurationFile';
+import { Coverage } from './coverage';
 import { DisposableStore } from './disposable';
 import { TestProcessExitedError } from './errors';
 import { ItemType, testMetadata } from './metadata';
@@ -39,13 +40,21 @@ export class TestRunner {
     config: ConfigurationFile,
     configIndex: number,
     debug: boolean,
+    recordCoverage = false,
   ): RunHandler {
     return async (request) => {
       const run = ctrl.createTestRun(request);
+      const baseArgs = ['--label', `${configIndex}`];
+      let coverage: Coverage | undefined;
+      if (recordCoverage) {
+        coverage = new Coverage(config);
+        baseArgs.push(...coverage.args);
+      }
+
       const { args, compiledFileTests, leafTests } = await this.prepareArguments(
         ctrl,
         config,
-        ['--label', `${configIndex}`],
+        baseArgs,
         request,
         run,
       );
@@ -172,7 +181,6 @@ export class TestRunner {
             }
             case MochaEvent.End:
               isOutsideTestRun = true;
-              spawnCts.cancel();
               break;
             default:
               // just normal output
@@ -218,6 +226,8 @@ export class TestRunner {
 
       if (!ranAnyTest) {
         await vscode.commands.executeCommand('testing.showMostRecentOutput');
+      } else {
+        await coverage?.finalize(run);
       }
 
       await outputQueue.drain();
