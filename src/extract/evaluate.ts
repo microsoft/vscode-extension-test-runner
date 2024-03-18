@@ -81,7 +81,7 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
       if (kind === NodeKind.Suite) {
         stack.push(node);
         try {
-          callback();
+          callback.call(placeholder());
         } catch (e) {
           node.error = e instanceof Error ? e.message : String(e);
         } finally {
