@@ -40,10 +40,11 @@ export class TestRunner {
     config: ConfigurationFile,
     configIndex: number,
     debug: boolean,
+    name: string,
     recordCoverage = false,
   ): RunHandler {
     return async (request) => {
-      const run = ctrl.createTestRun(request);
+      const run = ctrl.createTestRun(request, name);
       const baseArgs = ['--label', `${configIndex}`];
       let coverage: Coverage | undefined;
       if (recordCoverage) {

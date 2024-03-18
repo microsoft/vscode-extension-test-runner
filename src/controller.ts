@@ -285,9 +285,16 @@ export class Controller {
         continue;
       }
 
-      const run = this.runner.makeHandler(this.ctrl, this.configFile, index, false);
-      const debug = this.runner.makeHandler(this.ctrl, this.configFile, index, true);
-      const coverage = this.runner.makeHandler(this.ctrl, this.configFile, index, false, true);
+      const run = this.runner.makeHandler(this.ctrl, this.configFile, index, false, name);
+      const debug = this.runner.makeHandler(this.ctrl, this.configFile, index, true, name);
+      const coverage = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        false,
+        name,
+        true,
+      );
       const profiles = [
         this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, run, true),
         this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Debug, debug, true),
