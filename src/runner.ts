@@ -40,10 +40,11 @@ export class TestRunner {
     config: ConfigurationFile,
     configIndex: number,
     debug: boolean,
+    name: string,
     recordCoverage = false,
   ): RunHandler {
     return async (request) => {
-      const run = ctrl.createTestRun(request);
+      const run = ctrl.createTestRun(request, name);
       const baseArgs = ['--label', `${configIndex}`];
       let coverage: Coverage | undefined;
       if (recordCoverage) {
@@ -57,6 +58,7 @@ export class TestRunner {
         baseArgs,
         request,
         run,
+        configIndex,
       );
       if (run.token.isCancellationRequested) {
         return;
@@ -359,6 +361,7 @@ export class TestRunner {
     baseArgs: ReadonlyArray<string>,
     request: vscode.TestRunRequest,
     run: vscode.TestRun,
+    configIndex: number,
   ) {
     const reporter = await config.resolveCli('fullJsonStream');
     const args = [...baseArgs, '--reporter', reporter];
@@ -384,6 +387,16 @@ export class TestRunner {
 
       if (data.type === ItemType.Test || data.type === ItemType.Suite) {
         grepRe.push(escapeRe(getFullName(test)) + (data.type === ItemType.Test ? '$' : ' '));
+      }
+
+      if (data.type === ItemType.File) {
+        /**
+         * If the file is not part of the configuration being executed, don't
+         * consider its children tests.
+         */
+        if (!(await config.read()).includesTestFile(data.compiledIn)?.includes(configIndex)) {
+          continue;
+        }
       }
 
       forEachLeaf(test, (t) => {
