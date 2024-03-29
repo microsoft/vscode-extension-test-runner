@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { ConfigValue } from './configValue';
-import { ConfigurationFile, ConfigurationList } from './configurationFile';
+import { ConfigurationFile, ConfigurationList, isDesktopConfig } from './configurationFile';
 import { defaultTestSymbols, showConfigErrorCommand } from './constants';
 import { DisposableStore, MutableDisposable } from './disposable';
 import { IParsedNode, NodeKind, extract } from './extract';
@@ -272,6 +272,10 @@ export class Controller {
     const oldRunHandlers = this.runProfiles;
     this.runProfiles = new Map();
     for (const [index, { config }] of configs.value.entries()) {
+      if (!isDesktopConfig(config)) {
+        continue; // web runs currently not supported by the CLI
+      }
+
       const originalName = config.label || `Config #${index + 1}`;
       let name = originalName;
       for (let i = 2; this.runProfiles.has(name); i++) {
@@ -285,14 +289,31 @@ export class Controller {
         continue;
       }
 
-      const run = this.runner.makeHandler(this.ctrl, this.configFile, index, false, name);
-      const debug = this.runner.makeHandler(this.ctrl, this.configFile, index, true, name);
+      const userDataDir = this.tryGetUserDataDir(config.launchArgs || []);
+
+      const run = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        false,
+        name,
+        userDataDir,
+      );
+      const debug = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        true,
+        name,
+        userDataDir,
+      );
       const coverage = this.runner.makeHandler(
         this.ctrl,
         this.configFile,
         index,
         false,
         name,
+        userDataDir,
         true,
       );
       const profiles = [
@@ -312,6 +333,19 @@ export class Controller {
         profile.dispose();
       }
     }
+  }
+
+  private tryGetUserDataDir(args: string[]): string | undefined {
+    const uddArg = '--user-data-dir';
+
+    const idx = args.indexOf(uddArg);
+    if (idx !== -1) {
+      return args[idx + 1];
+    }
+
+    const prefix = `${uddArg}=`;
+    const prefixed = args.find(a => a.startsWith(prefix));
+    return prefixed ? prefixed.slice(prefix.length) : undefined;
   }
 
   private async readConfig() {

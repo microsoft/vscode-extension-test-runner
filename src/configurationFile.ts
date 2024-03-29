@@ -1,7 +1,7 @@
 /*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
-import type { TestConfiguration } from '@vscode/test-cli';
+import type { IDesktopTestConfiguration, TestConfiguration } from '@vscode/test-cli';
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import resolveModule from 'enhanced-resolve';
 import * as fs from 'fs';
@@ -157,6 +157,9 @@ export class ConfigurationFile implements vscode.Disposable {
 }
 
 const toForwardSlashes = (p: string) => p.replace(/\\/g, '/');
+
+export const isDesktopConfig = (cfg: TestConfiguration): cfg is IDesktopTestConfiguration =>
+  !cfg.platform || cfg.platform === 'desktop';
 
 export class ConfigurationList {
   private readonly patterns: (

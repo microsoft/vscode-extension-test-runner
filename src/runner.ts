@@ -30,6 +30,8 @@ export type RunHandler = (
 ) => Promise<void>;
 
 export class TestRunner {
+  private queues = new Map</* user data dir */ string | undefined, Promise<void>>();
+
   constructor(
     private readonly smStore: SourceMapStore,
     private readonly launchConfig: ConfigValue<Record<string, any>>,
@@ -41,6 +43,7 @@ export class TestRunner {
     configIndex: number,
     debug: boolean,
     name: string,
+    userDataDir: string | undefined,
     recordCoverage = false,
   ): RunHandler {
     return async (request) => {
@@ -55,10 +58,10 @@ export class TestRunner {
       const { args, compiledFileTests, leafTests } = await this.prepareArguments(
         ctrl,
         config,
+        configIndex,
         baseArgs,
         request,
         run,
-        configIndex,
       );
       if (run.token.isCancellationRequested) {
         return;
@@ -198,17 +201,22 @@ export class TestRunner {
         )}\r\n`,
       );
 
-      try {
-        if (debug) {
-          await this.runDebug(spawnOpts);
-        } else {
-          await this.runWithoutDebug(spawnOpts);
+      const promise = (this.queues.get(userDataDir) || Promise.resolve()).then(async () => {
+        try {
+          if (debug) {
+            await this.runDebug(spawnOpts);
+          } else {
+            await this.runWithoutDebug(spawnOpts);
+          }
+        } catch (e) {
+          if (!spawnCts.token.isCancellationRequested) {
+            enqueueLine(String(e));
+          }
         }
-      } catch (e) {
-        if (!spawnCts.token.isCancellationRequested) {
-          enqueueLine(String(e));
-        }
-      }
+      });
+
+      this.queues.set(userDataDir, promise);
+      await promise;
 
       if (!spawnCts.token.isCancellationRequested) {
         if (ranAnyTest) {
@@ -358,11 +366,12 @@ export class TestRunner {
   private async prepareArguments(
     ctrl: vscode.TestController,
     config: ConfigurationFile,
+    configIndex: number,
     baseArgs: ReadonlyArray<string>,
     request: vscode.TestRunRequest,
     run: vscode.TestRun,
-    configIndex: number,
   ) {
+    const tagId = String(configIndex);
     const reporter = await config.resolveCli('fullJsonStream');
     const args = [...baseArgs, '--reporter', reporter];
     const exclude = new Set(request.exclude);
@@ -385,18 +394,12 @@ export class TestRunner {
         continue;
       }
 
-      if (data.type === ItemType.Test || data.type === ItemType.Suite) {
-        grepRe.push(escapeRe(getFullName(test)) + (data.type === ItemType.Test ? '$' : ' '));
+      if (!test.tags.some((t) => t.id === tagId)) {
+        continue;
       }
 
-      if (data.type === ItemType.File) {
-        /**
-         * If the file is not part of the configuration being executed, don't
-         * consider its children tests.
-         */
-        if (!(await config.read()).includesTestFile(data.compiledIn)?.includes(configIndex)) {
-          continue;
-        }
+      if (data.type === ItemType.Test || data.type === ItemType.Suite) {
+        grepRe.push(escapeRe(getFullName(test)) + (data.type === ItemType.Test ? '$' : ' '));
       }
 
       forEachLeaf(test, (t) => {
