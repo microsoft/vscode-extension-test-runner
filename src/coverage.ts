@@ -4,11 +4,13 @@
 
 import { randomUUID } from 'crypto';
 import { existsSync, promises as fs, mkdirSync } from 'fs';
-import { IstanbulCoverage } from 'istanbul-to-vscode';
+import { IstanbulCoverageContext } from 'istanbul-to-vscode';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import * as vscode from 'vscode';
 import { ConfigurationFile } from './configurationFile';
+
+export const coverageContext = new IstanbulCoverageContext({ booleanCounts: true });
 
 export class Coverage {
   private readonly targetDir = join(tmpdir(), `ext-coverage-${randomUUID()}`);
@@ -25,11 +27,9 @@ export class Coverage {
   }
 
   public async finalize(run: vscode.TestRun) {
-    const coverageFile = join(this.targetDir, 'coverage-final.json');
-    if (existsSync(coverageFile)) {
+    if (existsSync(this.targetDir)) {
       try {
-        const contents = JSON.parse(await fs.readFile(coverageFile, 'utf8'));
-        run.coverageProvider = new CoverageProvider(contents);
+        await coverageContext.apply(run, this.targetDir);
       } catch (e) {
         vscode.window.showWarningMessage(`Error parsing test coverage: ${e}`);
       }
@@ -51,14 +51,5 @@ export class Coverage {
     }
 
     await fs.rm(this.targetDir, { recursive: true, force: true });
-  }
-}
-
-class CoverageProvider extends IstanbulCoverage {
-  public booleanCounts = true;
-
-  override mapLocation(compiledUri: vscode.Uri, l: number, c: number) {
-    // V8/sourcemaps can sometimes result in negative l/c when converting to base1:
-    return super.mapLocation(compiledUri, Math.max(0, l), Math.max(0, c));
   }
 }

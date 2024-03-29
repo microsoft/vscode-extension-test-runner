@@ -6,8 +6,9 @@ import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { ConfigValue } from './configValue';
-import { ConfigurationFile, ConfigurationList } from './configurationFile';
+import { ConfigurationFile, ConfigurationList, isDesktopConfig } from './configurationFile';
 import { defaultTestSymbols, showConfigErrorCommand } from './constants';
+import { coverageContext } from './coverage';
 import { DisposableStore, MutableDisposable } from './disposable';
 import { IParsedNode, NodeKind, extract } from './extract';
 import { last } from './iterable';
@@ -35,7 +36,10 @@ export class Controller {
   );
   private readonly watcher = this.disposable.add(new MutableDisposable());
   private readonly didChangeEmitter = new vscode.EventEmitter<void>();
-  private runProfiles = new Map<string, vscode.TestRunProfile[]>();
+  private runProfiles = new Map<
+    string,
+    { run: vscode.TestRunProfile; debug: vscode.TestRunProfile; cover: vscode.TestRunProfile }
+  >();
 
   /** Error item shown in the tree, if any. */
   private errorItem?: vscode.TestItem;
@@ -55,7 +59,7 @@ export class Controller {
 
   /** Gets run profiles the controller has registerd. */
   public get profiles() {
-    return [...this.runProfiles.values()].flat();
+    return [...this.runProfiles.values()].flatMap((o) => Object.values(o));
   }
 
   constructor(
@@ -272,28 +276,70 @@ export class Controller {
     const oldRunHandlers = this.runProfiles;
     this.runProfiles = new Map();
     for (const [index, { config }] of configs.value.entries()) {
+      if (!isDesktopConfig(config)) {
+        continue; // web runs currently not supported by the CLI
+      }
+
       const originalName = config.label || `Config #${index + 1}`;
       let name = originalName;
       for (let i = 2; this.runProfiles.has(name); i++) {
         name = `${originalName} #${i}`;
       }
 
+      const userDataDir = this.tryGetUserDataDir(config.launchArgs || []);
+
+      const doRun = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        false,
+        name,
+        userDataDir,
+      );
+      const doDebug = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        true,
+        name,
+        userDataDir,
+      );
+      const doCoverage = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        false,
+        name,
+        userDataDir,
+        true,
+      );
+
       const prev = oldRunHandlers.get(name);
       if (prev) {
+        prev.run.runHandler = doRun;
+        prev.debug.runHandler = doDebug;
+        prev.cover.runHandler = doCoverage;
+
         this.runProfiles.set(name, prev);
         oldRunHandlers.delete(name);
         continue;
       }
 
-      const run = this.runner.makeHandler(this.ctrl, this.configFile, index, false);
-      const debug = this.runner.makeHandler(this.ctrl, this.configFile, index, true);
-      const coverage = this.runner.makeHandler(this.ctrl, this.configFile, index, false, true);
-      const profiles = [
-        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, run, true),
-        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Debug, debug, true),
-        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Coverage, coverage, true),
-      ];
-      for (const profile of profiles) {
+      const profiles = {
+        run: this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, doRun, true),
+        debug: this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Debug, doDebug, true),
+        cover: this.ctrl.createRunProfile(
+          name,
+          vscode.TestRunProfileKind.Coverage,
+          doCoverage,
+          true,
+        ),
+      };
+
+      // coverage profile:
+      profiles.cover.loadDetailedCoverage = coverageContext.loadDetailedCoverage;
+
+      for (const profile of Object.values(profiles)) {
         profile.tag = new vscode.TestTag(`${index}`);
       }
 
@@ -301,10 +347,23 @@ export class Controller {
     }
 
     for (const profiles of oldRunHandlers.values()) {
-      for (const profile of profiles) {
+      for (const profile of Object.values(profiles)) {
         profile.dispose();
       }
     }
+  }
+
+  private tryGetUserDataDir(args: string[]): string | undefined {
+    const uddArg = '--user-data-dir';
+
+    const idx = args.indexOf(uddArg);
+    if (idx !== -1) {
+      return args[idx + 1];
+    }
+
+    const prefix = `${uddArg}=`;
+    const prefixed = args.find((a) => a.startsWith(prefix));
+    return prefixed ? prefixed.slice(prefix.length) : undefined;
   }
 
   private async readConfig() {
