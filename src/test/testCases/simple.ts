@@ -76,7 +76,7 @@ it('handles file change', () =>
 it('runs tests', async () => {
   const c = await getController();
   const profiles = c.profiles;
-  expect(profiles).to.have.lengthOf(2);
+  expect(profiles).to.have.lengthOf(3);
 
   const run = await captureTestRun(
     c,

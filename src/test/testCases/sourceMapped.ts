@@ -54,7 +54,7 @@ it('cleans up folder if all child files are deleted', () =>
 it('runs tests', async () => {
   const c = await getController();
   const profiles = c.profiles;
-  expect(profiles).to.have.lengthOf(2);
+  expect(profiles).to.have.lengthOf(3);
 
   const run = await captureTestRun(
     c,

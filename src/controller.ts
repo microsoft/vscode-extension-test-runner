@@ -59,7 +59,7 @@ export class Controller {
 
   /** Gets run profiles the controller has registerd. */
   public get profiles() {
-    return [...this.runProfiles.values()].flat();
+    return [...this.runProfiles.values()].flatMap((o) => Object.values(o));
   }
 
   constructor(
