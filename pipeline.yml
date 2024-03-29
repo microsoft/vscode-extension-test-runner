@@ -24,7 +24,7 @@ extends:
     ghCreateTag: false
     cgIgnoreDirectories: 'testCases,.vscode-test'
     buildSteps:
-      - script: npm install ci
+      - script: npm ci
         displayName: Install dependencies
 
       - script: |

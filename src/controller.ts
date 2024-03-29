@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { ConfigValue } from './configValue';
 import { ConfigurationFile, ConfigurationList, isDesktopConfig } from './configurationFile';
 import { defaultTestSymbols, showConfigErrorCommand } from './constants';
+import { coverageContext } from './coverage';
 import { DisposableStore, MutableDisposable } from './disposable';
 import { IParsedNode, NodeKind, extract } from './extract';
 import { last } from './iterable';
@@ -321,6 +322,10 @@ export class Controller {
         this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Debug, debug, true),
         this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Coverage, coverage, true),
       ];
+
+      // coverage profile:
+      profiles[2].loadDetailedCoverage = coverageContext.loadDetailedCoverage;
+
       for (const profile of profiles) {
         profile.tag = new vscode.TestTag(`${index}`);
       }
