@@ -126,7 +126,11 @@ export class FakeTestRun implements vscode.TestRun {
   public readonly name = undefined;
   public readonly token = new vscode.CancellationTokenSource().token;
   public readonly isPersisted = true;
+  public onDidDispose = new vscode.EventEmitter<void>().event;
 
+  addCoverage(fileCoverage: vscode.FileCoverage): void {
+    // ignored
+  }
   enqueued(test: vscode.TestItem): void {
     this.states.push({ test, state: 'enqueued' });
   }

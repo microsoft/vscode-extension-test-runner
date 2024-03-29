@@ -6,15 +6,12 @@
   "version": "0.0.7",
   "icon": "icon.png",
   "engines": {
-    "vscode": "^1.83.0"
+    "vscode": "^1.88.0"
   },
   "keywords": [
     "vscode",
     "test",
     "cli"
-  ],
-  "enabledApiProposals": [
-    "testCoverage"
   ],
   "categories": [
     "Testing"
@@ -96,7 +93,7 @@
   "scripts": {
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "npm run compile",
-    "postinstall": "cd src/typings && vscode-dts main && vscode-dts dev",
+    "postinstall": "cd src/typings && dts main && dts dev",
     "clean": "node -e \"fs.rmSync('out',{force:true,recursive:true})\"",
     "compile": "npm run clean && node .esbuild.js --minify",
     "watch:esbuild": "npm run clean && node .esbuild.js --watch",
@@ -113,6 +110,7 @@
     "@types/picomatch": "^2.3.1",
     "@types/sinon": "^10.0.19",
     "@types/split2": "^4.2.1",
+    "@vscode/dts": "^0.4.0",
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.9",
     "acorn": "^8.10.0",
@@ -122,8 +120,7 @@
     "mocha": "^10.2.0",
     "prettier": "^3.0.3",
     "sinon": "^16.1.0",
-    "typescript": "^5.2.2",
-    "vscode-dts": "^0.3.3"
+    "typescript": "^5.2.2"
   },
   "prettier": {
     "printWidth": 100,
@@ -137,7 +134,7 @@
     "enhanced-resolve": "^5.15.0",
     "error-stack-parser": "^2.1.4",
     "eslint-visitor-keys": "^3.4.3",
-    "istanbul-to-vscode": "^1.0.1",
+    "istanbul-to-vscode": "^2.1.0",
     "minimatch": "^9.0.3",
     "split2": "^4.2.0",
     "stacktrace-parser": "^0.1.10"
