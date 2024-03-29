@@ -36,7 +36,10 @@ export class Controller {
   );
   private readonly watcher = this.disposable.add(new MutableDisposable());
   private readonly didChangeEmitter = new vscode.EventEmitter<void>();
-  private runProfiles = new Map<string, vscode.TestRunProfile[]>();
+  private runProfiles = new Map<
+    string,
+    { run: vscode.TestRunProfile; debug: vscode.TestRunProfile; cover: vscode.TestRunProfile }
+  >();
 
   /** Error item shown in the tree, if any. */
   private errorItem?: vscode.TestItem;
@@ -283,50 +286,60 @@ export class Controller {
         name = `${originalName} #${i}`;
       }
 
+      const userDataDir = this.tryGetUserDataDir(config.launchArgs || []);
+
+      const doRun = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        false,
+        name,
+        userDataDir,
+      );
+      const doDebug = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        true,
+        name,
+        userDataDir,
+      );
+      const doCoverage = this.runner.makeHandler(
+        this.ctrl,
+        this.configFile,
+        index,
+        false,
+        name,
+        userDataDir,
+        true,
+      );
+
       const prev = oldRunHandlers.get(name);
       if (prev) {
+        prev.run.runHandler = doRun;
+        prev.debug.runHandler = doDebug;
+        prev.cover.runHandler = doCoverage;
+
         this.runProfiles.set(name, prev);
         oldRunHandlers.delete(name);
         continue;
       }
 
-      const userDataDir = this.tryGetUserDataDir(config.launchArgs || []);
-
-      const run = this.runner.makeHandler(
-        this.ctrl,
-        this.configFile,
-        index,
-        false,
-        name,
-        userDataDir,
-      );
-      const debug = this.runner.makeHandler(
-        this.ctrl,
-        this.configFile,
-        index,
-        true,
-        name,
-        userDataDir,
-      );
-      const coverage = this.runner.makeHandler(
-        this.ctrl,
-        this.configFile,
-        index,
-        false,
-        name,
-        userDataDir,
-        true,
-      );
-      const profiles = [
-        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, run, true),
-        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Debug, debug, true),
-        this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Coverage, coverage, true),
-      ];
+      const profiles = {
+        run: this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Run, doRun, true),
+        debug: this.ctrl.createRunProfile(name, vscode.TestRunProfileKind.Debug, doDebug, true),
+        cover: this.ctrl.createRunProfile(
+          name,
+          vscode.TestRunProfileKind.Coverage,
+          doCoverage,
+          true,
+        ),
+      };
 
       // coverage profile:
-      profiles[2].loadDetailedCoverage = coverageContext.loadDetailedCoverage;
+      profiles.cover.loadDetailedCoverage = coverageContext.loadDetailedCoverage;
 
-      for (const profile of profiles) {
+      for (const profile of Object.values(profiles)) {
         profile.tag = new vscode.TestTag(`${index}`);
       }
 
@@ -334,7 +347,7 @@ export class Controller {
     }
 
     for (const profiles of oldRunHandlers.values()) {
-      for (const profile of profiles) {
+      for (const profile of Object.values(profiles)) {
         profile.dispose();
       }
     }
@@ -349,7 +362,7 @@ export class Controller {
     }
 
     const prefix = `${uddArg}=`;
-    const prefixed = args.find(a => a.startsWith(prefix));
+    const prefixed = args.find((a) => a.startsWith(prefix));
     return prefixed ? prefixed.slice(prefix.length) : undefined;
   }
 
