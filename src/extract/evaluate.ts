@@ -31,8 +31,10 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
   const stack: IParsedNode[] = [{ children: [] } as Partial<IParsedNode> as IParsedNode];
 
   // A placeholder object that returns itself for all functions calls and method accesses.
-  const placeholder: () => unknown = () =>
-    new Proxy(placeholder, {
+  // It must be a function definition, not an arrow function, to allow it to be 'constructed'
+  // and captured the `construct` trap.
+  function placeholder(): unknown {
+    return new Proxy(placeholder, {
       get: (obj, target) => {
         const desc = Object.getOwnPropertyDescriptor(obj, target);
         if (desc && !desc.writable && !desc.configurable) {
@@ -40,8 +42,12 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
         }
         return placeholder();
       },
+      construct() {
+        return placeholder() as object;
+      },
       set: () => true,
     });
+  }
 
   function makeTesterFunction(kind: NodeKind, directive?: string) {
     const fn = (name: string, callback: () => void) => {

@@ -174,4 +174,19 @@ describe('evaluate', () => {
       },
     ]);
   });
+
+  it('does not break on constructors', () => {
+    const src = extractWithEvaluation(`new foo.Bar(); it('works', () => {});`, defaultTestSymbols);
+    expect(src).to.deep.equal([
+      {
+        name: 'works',
+        kind: NodeKind.Test,
+        startLine: 1,
+        startColumn: 16,
+        endLine: 1,
+        endColumn: Number.MAX_SAFE_INTEGER,
+        children: [],
+      },
+    ]);
+  });
 });
