@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { minimatch } from 'minimatch';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ConfigValue } from './configValue';
 import { cliPackageName } from './constants';
 import { DisposableStore } from './disposable';
 import { CliPackageMissing, ConfigProcessReadError, HumanError } from './errors';
@@ -42,6 +43,7 @@ export class ConfigurationFile implements vscode.Disposable {
   constructor(
     public readonly uri: vscode.Uri,
     public readonly wf: vscode.WorkspaceFolder,
+    private readonly wrapper: ConfigValue<string | undefined>,
   ) {
     const watcher = this.ds.add(vscode.workspace.createFileSystemWatcher(uri.fsPath));
     let changeDebounce: NodeJS.Timeout | undefined;
@@ -62,6 +64,13 @@ export class ConfigurationFile implements vscode.Disposable {
       watcher.onDidDelete(() => {
         this.readPromise = undefined;
         this.didDeleteEmitter.fire();
+      }),
+    );
+
+    this.ds.add(
+      wrapper.onDidChange(() => {
+        this.readPromise = undefined;
+        this.didChangeEmitter.fire();
       }),
     );
   }
@@ -87,8 +96,16 @@ export class ConfigurationFile implements vscode.Disposable {
    */
   public async spawnCli(args: readonly string[]) {
     const cliPath = await this.resolveCli();
+    const wrapper = this.wrapper.value;
     return await new Promise<ChildProcessWithoutNullStreams>((resolve, reject) => {
-      const p = spawn(process.execPath, [cliPath, '--config', this.uri.fsPath, ...args], {
+      const argvN = [cliPath, '--config', this.uri.fsPath, ...args];
+      let argv0 = process.execPath;
+      if (wrapper) {
+        argvN.unshift(process.execPath);
+        argv0 = wrapper;
+      }
+
+      const p = spawn(argv0, argvN, {
         cwd: path.dirname(this.uri.fsPath),
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       });

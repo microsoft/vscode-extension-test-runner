@@ -35,6 +35,7 @@ export class TestRunner {
   constructor(
     private readonly smStore: SourceMapStore,
     private readonly launchConfig: ConfigValue<Record<string, any>>,
+    private readonly wrapper: ConfigValue<string | undefined>,
   ) {}
 
   public makeHandler(
@@ -195,10 +196,11 @@ export class TestRunner {
         token: spawnCts.token,
       };
 
+      const wrapper = this.wrapper.value;
       run.appendOutput(
-        `${styles.inverse.open} > ${styles.inverse.close} vscode-test ${spawnOpts.args.join(
-          ' ',
-        )}\r\n`,
+        `${styles.inverse.open} > ${styles.inverse.close} ${
+          wrapper ? `${wrapper} ` : ''
+        }vscode-test ${spawnOpts.args.join(' ')}\r\n`,
       );
 
       const promise = (this.queues.get(userDataDir) || Promise.resolve()).then(async () => {
