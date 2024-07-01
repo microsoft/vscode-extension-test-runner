@@ -19,7 +19,8 @@ const enum FolderSyncState {
 
 export function activate(context: vscode.ExtensionContext) {
   const smStore = new SourceMapStore();
-  const runner = new TestRunner(smStore, new ConfigValue('debugOptions', {}));
+  const wrapperCfg = new ConfigValue<string | undefined>('wrapper', undefined);
+  const runner = new TestRunner(smStore, new ConfigValue('debugOptions', {}), wrapperCfg);
 
   let ctrls: Controller[] = [];
   let resyncState: FolderSyncState = FolderSyncState.Idle;
@@ -53,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
               : folder.name,
           );
 
-          ctrls.push(new Controller(ctrl, folder, smStore, file, runner));
+          ctrls.push(new Controller(ctrl, folder, smStore, file, runner, wrapperCfg));
         }
       }),
     );
@@ -99,6 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
   })();
 
   context.subscriptions.push(
+    wrapperCfg,
     vscode.workspace.onDidChangeWorkspaceFolders(syncWorkspaceFolders),
     vscode.commands.registerCommand(showConfigErrorCommand, showConfigError),
     vscode.commands.registerCommand(getControllersForTestCommand, () =>

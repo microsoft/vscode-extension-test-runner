@@ -20,6 +20,10 @@ This extension automatically discovers and works with the `.vscode-test.js/mjs/c
 
 - `extension-test-runner.debugOptions`: options, normally found in the launch.json, to pass when debugging the extension. See [the docs](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-attributes) for a complete list of options.
 
+- `extension-test-runner.wrapper`: a wrapper script to use when running VS Code outside of debug mode. When running tests, arguments will be passed to this script, and it should spawn the first argument as a child process.
+
+  A common use case for this is to set it to `xvfb-run` for use in remotes which lack a display to avoid a "missing display" error.
+
 ## Contributing
 
 This project welcomes contributions and suggestions. Most contributions require you to agree to a
