@@ -249,7 +249,7 @@ export class TestRunner {
 
   private async runDebug({ args, config, onLine, token, configIndex }: ISpawnOptions) {
     const thisConfig = (
-      await config.captureCliJson<IResolvedConfiguration[]>([...args, '--list-configuration'])
+      await config.captureCliJson<IResolvedConfiguration[]>([...args, '--timeout=0', '--list-configuration'])
     )?.[0];
     if (token.isCancellationRequested || !thisConfig || token.isCancellationRequested) {
       return;
