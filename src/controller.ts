@@ -68,7 +68,7 @@ export class Controller {
     private readonly smStore: SourceMapStore,
     configFileUri: vscode.Uri,
     private readonly runner: TestRunner,
-    wrapper: ConfigValue<string | undefined>,
+    wrapper: ConfigValue<string | string[] | undefined>,
   ) {
     this.disposable.add(ctrl);
     this.configFile = this.disposable.add(new ConfigurationFile(configFileUri, wf, wrapper));

@@ -35,7 +35,7 @@ export class TestRunner {
   constructor(
     private readonly smStore: SourceMapStore,
     private readonly launchConfig: ConfigValue<Record<string, any>>,
-    private readonly wrapper: ConfigValue<string | undefined>,
+    private readonly wrapper: ConfigValue<string | string[] | undefined>,
   ) {}
 
   public makeHandler(
@@ -199,7 +199,7 @@ export class TestRunner {
       const wrapper = this.wrapper.value;
       run.appendOutput(
         `${styles.inverse.open} > ${styles.inverse.close} ${
-          wrapper ? `${wrapper} ` : ''
+          wrapper ? `${wrapper instanceof Array ? wrapper.join(' ') : wrapper} ` : ''
         }vscode-test ${spawnOpts.args.join(' ')}\r\n`,
       );
 

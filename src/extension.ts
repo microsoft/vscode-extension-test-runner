@@ -19,7 +19,7 @@ const enum FolderSyncState {
 
 export function activate(context: vscode.ExtensionContext) {
   const smStore = new SourceMapStore();
-  const wrapperCfg = new ConfigValue<string | undefined>('wrapper', undefined);
+  const wrapperCfg = new ConfigValue<string | string[] | undefined>('wrapper', undefined);
   const runner = new TestRunner(smStore, new ConfigValue('debugOptions', {}), wrapperCfg);
 
   let ctrls: Controller[] = [];
