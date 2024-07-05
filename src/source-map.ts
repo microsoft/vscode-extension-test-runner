@@ -59,7 +59,8 @@ export const parseSourceMapURL = (path: vscode.Uri, sourceMapUrl: string) => {
   const pathAsStr = path.toString();
   if (sourceMapUrl.startsWith('data:')) {
     const data = dataUriToBuffer(sourceMapUrl);
-    return smMappingAccessor(path, new TraceMap(data.toString(), pathAsStr));
+    const decoder = new TextDecoder();
+    return smMappingAccessor(path, new TraceMap(decoder.decode(data.buffer), pathAsStr));
   }
 
   const sourceMapPath = fileURLToPath(new URL(sourceMapUrl, pathAsStr).toString());
