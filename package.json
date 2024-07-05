@@ -29,8 +29,20 @@
         "properties": {
           "extension-test-runner.wrapper": {
             "markdownDescription": "A wrapper script that runs tests. When running tests outside of debug mode, arguments will be passed to this script, and it should spawn the first argument as a child process.\n\nA common use case for this is to set it to `xvfb-run` for use in remotes which lack a display.",
-            "examples": ["xvfb-run"],
-            "type": "string"
+            "examples": [
+              "xvfb-run"
+            ],
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
           },
           "extension-test-runner.extractSettings": {
             "markdownDescription": "Configures how tests get extracted. You can configure:\n\n- The `extractWith` mode, that specifies if tests are extracted via evaluation or syntax-tree parsing.\n- The `test` and `suite` identifiers the process extracts.",

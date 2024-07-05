@@ -43,7 +43,7 @@ export class ConfigurationFile implements vscode.Disposable {
   constructor(
     public readonly uri: vscode.Uri,
     public readonly wf: vscode.WorkspaceFolder,
-    private readonly wrapper: ConfigValue<string | undefined>,
+    private readonly wrapper: ConfigValue<string | string[] | undefined>,
   ) {
     const watcher = this.ds.add(vscode.workspace.createFileSystemWatcher(uri.fsPath));
     let changeDebounce: NodeJS.Timeout | undefined;
@@ -98,9 +98,12 @@ export class ConfigurationFile implements vscode.Disposable {
     const cliPath = await this.resolveCli();
     const wrapper = this.wrapper.value;
     return await new Promise<ChildProcessWithoutNullStreams>((resolve, reject) => {
-      const argvN = [cliPath, '--config', this.uri.fsPath, ...args];
+      let argvN = [cliPath, '--config', this.uri.fsPath, ...args];
       let argv0 = process.execPath;
-      if (wrapper) {
+      if (wrapper instanceof Array) {
+        argvN = [...wrapper.slice(1), process.execPath, ...argvN];
+        argv0 = wrapper[0];
+      } else if (wrapper) {
         argvN.unshift(process.execPath);
         argv0 = wrapper;
       }
