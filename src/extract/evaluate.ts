@@ -2,18 +2,21 @@ import * as errorParser from 'error-stack-parser';
 import * as vm from 'vm';
 import { IParsedNode, ITestSymbols, NodeKind } from '.';
 
-/**
- * Note: the goal is not to sandbox test code (workspace trust is required
- * for this extension) but rather to avoid side-effects from evaluation which
- * are much more likely when other code is required.
- */
-const replacedGlobals = new Set([
-  // avoid side-effects:
-  'require',
-  'process',
-  // avoid printing to the console from tests:
-  'console',
-]);
+// node modules that we allow to be required. There are probably more we can
+// add as needed with greater or lesser confidence regarding side-effects.
+const allowedNodeModules = [
+  'buffer',
+  'constants',
+  'crypto',
+  'events',
+  'os',
+  'path',
+  'stream',
+  'string_decoder',
+  'timers',
+  'util',
+  'zlib',
+].flatMap((m) => [m, `node:${m}`]);
 
 /**
  * Honestly kind of amazed this works. We can use a Proxy as our globalThis
@@ -28,6 +31,29 @@ const replacedGlobals = new Set([
  * is also effective in stubbing require() so we know code is nicely isolated.
  */
 export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
+  /**
+   * Note: the goal is not to sandbox test code (workspace trust is required
+   * for this extension) but rather to avoid side-effects from evaluation which
+   * are much more likely when other code is required.
+   */
+  const replacedGlobals = new Map<string, () => unknown>([
+    // avoid side-effects:
+    [
+      'require',
+      () => (mod: string) =>
+        allowedNodeModules.some((m) => m === mod || mod.startsWith(m + '/'))
+          ? require(mod)
+          : placeholder(),
+    ],
+    ['process', placeholder],
+    // avoid printing to the console from tests:
+    ['console', placeholder],
+    // avoid messing with TS es module interop loader:
+    ['__importStar', () => undefined],
+    ['__setModuleDefault', () => undefined],
+    ['__createBinding', () => undefined],
+  ]);
+
   const stack: IParsedNode[] = [{ children: [] } as Partial<IParsedNode> as IParsedNode];
 
   // A placeholder object that returns itself for all functions calls and method accesses.
@@ -115,8 +141,8 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
         return testFunction;
       } else if (prop in target) {
         return target[prop]; // top-level `var` defined get set on the contextObj
-      } else if (prop in globalThis && !replacedGlobals.has(prop as string)) {
-        return (globalThis as any)[prop];
+      } else if (prop in globalThis || replacedGlobals.has(prop as string)) {
+        return replacedGlobals.get(prop as string)?.() ?? (globalThis as any)[prop];
       } else {
         return placeholder();
       }
