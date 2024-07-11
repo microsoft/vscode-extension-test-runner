@@ -114,7 +114,7 @@ export class Controller {
 
     let tree: IParsedNode[];
     try {
-      tree = extract(contents, this.extractMode.value);
+      tree = extract(uri.fsPath, contents, this.extractMode.value);
     } catch (e) {
       this.deleteFileTests(uri.toString());
       return;
