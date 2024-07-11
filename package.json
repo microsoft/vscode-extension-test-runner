@@ -3,7 +3,7 @@
   "displayName": "Extension Test Runner",
   "description": "Runs tests in VS Code extensions",
   "publisher": "ms-vscode",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.88.0-insider"
