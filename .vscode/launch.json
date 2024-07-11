@@ -10,8 +10,15 @@
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "autoAttachChildProcesses": false
-    }
+    },
+    {
+      "name": "Test Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "testConfiguration": "${workspaceFolder}/.vscode-test.mjs",
+      "testConfigurationLabel": "core",
+      "autoAttachChildProcesses": false
+    },
   ]
 }

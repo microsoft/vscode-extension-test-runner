@@ -28,10 +28,10 @@ export const enum NodeKind {
   Test,
 }
 
-export const extract = (code: string, symbols: ITestSymbols) => {
+export const extract = (file: string, code: string, symbols: ITestSymbols) => {
   if (symbols.extractWith === 'evaluation') {
     try {
-      return extractWithEvaluation(code, symbols);
+      return extractWithEvaluation(file, code, symbols);
     } catch (e) {
       console.warn('error evaluating, will fallback', e);
       // fall through

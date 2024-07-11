@@ -10,6 +10,7 @@ import { extractWithEvaluation } from './evaluate';
 describe('evaluate', () => {
   it('extracts basic suite', () => {
     const src = extractWithEvaluation(
+      'foo.js',
       `suite('hello', () => {
       it('works', () => {});
     })`,
@@ -40,6 +41,7 @@ describe('evaluate', () => {
 
   it('can evaluate and extract a test table', () => {
     const src = extractWithEvaluation(
+      'foo.js',
       `suite('hello', () => {
       for (const name of ['foo', 'bar', 'baz']) {
         it(name, () => {});
@@ -89,6 +91,7 @@ describe('evaluate', () => {
   });
   it('handles errors appropriately', () => {
     const src = extractWithEvaluation(
+      'foo.js',
       `suite('hello', () => {
         throw new Error('whoops');
     })`,
@@ -109,6 +112,7 @@ describe('evaluate', () => {
   });
   it('works with skip/only', () => {
     const src = extractWithEvaluation(
+      'foo.js',
       `suite('hello', () => {
         it.only('a', ()=>{});
         it.skip('a', ()=>{});
@@ -151,6 +155,7 @@ describe('evaluate', () => {
 
   it('stubs out requires and placeholds correctly', () => {
     const src = extractWithEvaluation(
+      'foo.js',
       `require("some invalid module").doing().other.things()`,
       defaultTestSymbols,
     );
@@ -159,6 +164,7 @@ describe('evaluate', () => {
 
   it('runs esbuild-style modules', () => {
     const src = extractWithEvaluation(
+      'foo.js',
       `var foo = () => suite('hello', () => {}); foo();`,
       defaultTestSymbols,
     );
@@ -176,7 +182,11 @@ describe('evaluate', () => {
   });
 
   it('does not break on constructors', () => {
-    const src = extractWithEvaluation(`new foo.Bar(); it('works', () => {});`, defaultTestSymbols);
+    const src = extractWithEvaluation(
+      'foo.js',
+      `new foo.Bar(); it('works', () => {});`,
+      defaultTestSymbols,
+    );
     expect(src).to.deep.equal([
       {
         name: 'works',
@@ -188,5 +198,29 @@ describe('evaluate', () => {
         children: [],
       },
     ]);
+  });
+
+  it('does not pass placeholder objects to node modules', () => {
+    expect(() => {
+      extractWithEvaluation(
+        'foo.js',
+        `const path = require('path'); path.join(foo, 'bar')`,
+        defaultTestSymbols,
+      );
+    }).to.throw('The "path" argument must be of type string. Received undefined');
+
+    expect(() => {
+      extractWithEvaluation(
+        'foo.js',
+        `const path = require('path'); path.win32.join(foo, 'bar')`,
+        defaultTestSymbols,
+      );
+    }).to.throw('The "path" argument must be of type string. Received undefined');
+
+    extractWithEvaluation(
+      'foo.js',
+      `const path = require('path'); path.join(__dirname, 'foo', 'bar')`,
+      defaultTestSymbols,
+    );
   });
 });

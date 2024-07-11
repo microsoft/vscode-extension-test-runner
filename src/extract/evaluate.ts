@@ -1,4 +1,5 @@
 import * as errorParser from 'error-stack-parser';
+import { dirname } from 'path';
 import * as vm from 'vm';
 import { IParsedNode, ITestSymbols, NodeKind } from '.';
 
@@ -30,7 +31,7 @@ const allowedNodeModules = [
  * Since extension host tests are always common.js (at least for now) this
  * is also effective in stubbing require() so we know code is nicely isolated.
  */
-export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
+export const extractWithEvaluation = (file: string, code: string, symbols: ITestSymbols) => {
   /**
    * Note: the goal is not to sandbox test code (workspace trust is required
    * for this extension) but rather to avoid side-effects from evaluation which
@@ -42,7 +43,7 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
       'require',
       () => (mod: string) =>
         allowedNodeModules.some((m) => m === mod || mod.startsWith(m + '/'))
-          ? require(mod)
+          ? wrapImportedModule(require(mod))
           : placeholder(),
     ],
     ['process', placeholder],
@@ -52,15 +53,19 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
     ['__importStar', () => undefined],
     ['__setModuleDefault', () => undefined],
     ['__createBinding', () => undefined],
+    // general constants:
+    ['__dirname', () => dirname(file)],
+    ['__filename', () => file],
   ]);
 
   const stack: IParsedNode[] = [{ children: [] } as Partial<IParsedNode> as IParsedNode];
+  const placeholders = new WeakSet<object>();
 
   // A placeholder object that returns itself for all functions calls and method accesses.
   // It must be a function definition, not an arrow function, to allow it to be 'constructed'
   // and captured the `construct` trap.
   function placeholder(): unknown {
-    return new Proxy(placeholder, {
+    const ph = new Proxy(placeholder, {
       get: (obj, target) => {
         const desc = Object.getOwnPropertyDescriptor(obj, target);
         if (desc && !desc.writable && !desc.configurable) {
@@ -72,6 +77,31 @@ export const extractWithEvaluation = (code: string, symbols: ITestSymbols) => {
         return placeholder() as object;
       },
       set: () => true,
+    });
+    placeholders.add(ph);
+    return ph;
+  }
+
+  // Wraps an imported module to avoid placeholders getting passed as arguments,
+  // which can cause mysterious and disturbing things to happen (#42)
+  function wrapImportedModule(obj: any): unknown {
+    return new Proxy(obj, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === 'function') {
+          return function (...args: any[]) {
+            return value.apply(
+              target,
+              args.map((arg) => (placeholders.has(arg) ? undefined : arg)),
+            );
+          };
+        }
+        if (value && typeof value === 'object') {
+          return wrapImportedModule(value);
+        }
+
+        return value;
+      },
     });
   }
 
