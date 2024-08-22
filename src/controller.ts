@@ -2,8 +2,6 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { createHash } from 'crypto';
-import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { ConfigValue } from './configValue';
 import { ConfigurationFile, ConfigurationList, isDesktopConfig } from './configurationFile';
@@ -15,8 +13,10 @@ import { last } from './iterable';
 import { ICreateOpts, ItemType, getContainingItemsForFile, testMetadata } from './metadata';
 import { TestRunner } from './runner';
 import { ISourceMapMaintainer, SourceMapStore } from './source-map-store';
+import { SyncController } from './syncController';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('ext-test-duplicates');
+const syncFileDebounce = 500;
 
 export class Controller {
   private readonly disposable = new DisposableStore();
@@ -54,6 +54,12 @@ export class Controller {
     }
   >();
 
+  /** Mapping of the files to debounce information */
+  private readonly filesDebounce = new Map<
+    /* uri */ string,
+    SyncController<(() => string) | undefined>
+  >();
+
   /** Change emitter used for testing, to pick up when the file watcher detects a chagne */
   public readonly onDidChange = this.didChangeEmitter.event;
 
@@ -89,7 +95,12 @@ export class Controller {
   }
 
   public async syncFile(uri: vscode.Uri, contents?: () => string) {
-    this._syncFile(uri, contents?.());
+    let db = this.filesDebounce.get(uri.toString());
+    if (!db) {
+      db = new SyncController((lastContents) => this._syncFile(uri, lastContents?.()));
+    }
+
+    return db.scheduleSync(contents);
   }
 
   private async _syncFile(uri: vscode.Uri, contents?: string) {
@@ -102,25 +113,23 @@ export class Controller {
       return;
     }
 
-    contents ??= await fs.readFile(uri.fsPath, 'utf8');
-
-    // avoid re-parsing if the contents are the same (e.g. if a file is edited
-    // and then saved.)
     const previous = this.testsInFiles.get(uri.toString());
-    const hash = createHash('sha256').update(contents).digest().readInt32BE(0);
-    if (hash === previous?.hash) {
-      return;
+    const extracted = await extract({
+      file: uri.fsPath,
+      contents,
+      skipIfShaMatches: previous?.hash,
+      symbols: {
+        extractWith: this.extractMode.value.extractWith,
+        suite: this.extractMode.value.suite,
+        test: this.extractMode.value.test,
+      },
+    });
+
+    if (!extracted.nodes) {
+      return; // SHA unchanged
     }
 
-    let tree: IParsedNode[];
-    try {
-      tree = extract(uri.fsPath, contents, this.extractMode.value);
-    } catch (e) {
-      this.deleteFileTests(uri.toString());
-      return;
-    }
-
-    if (!tree.length) {
+    if (!extracted.nodes.length) {
       this.deleteFileTests(uri.toString());
       return;
     }
@@ -175,7 +184,7 @@ export class Controller {
     // source file. This is probably a good assumption. Likewise we assume that a single
     // a single describe/test is not split between different files.
     const newTestsInFile = new Map<string, vscode.TestItem>();
-    for (const node of tree) {
+    for (const node of extracted.nodes) {
       const start = sourceMap.originalPositionFor(node.startLine, node.startColumn - 1);
       const end =
         node.endLine !== undefined && node.endColumn !== undefined
@@ -195,7 +204,11 @@ export class Controller {
       }
     }
 
-    this.testsInFiles.set(uri.toString(), { items: newTestsInFile, hash, sourceMap: smMaintainer });
+    this.testsInFiles.set(uri.toString(), {
+      items: newTestsInFile,
+      hash: extracted.hash,
+      sourceMap: smMaintainer,
+    });
     this.didChangeEmitter.fire();
   }
 
