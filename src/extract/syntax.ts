@@ -6,7 +6,7 @@ import type { Options } from 'acorn';
 import { parse } from 'acorn-loose';
 import * as evk from 'eslint-visitor-keys';
 import { Node } from 'estree';
-import { IParsedNode, ITestSymbols, NodeKind } from '.';
+import { IParsedNode, ITestSymbols, NodeKind } from '../extract';
 
 const enum C {
   MemberExpression = 'MemberExpression',

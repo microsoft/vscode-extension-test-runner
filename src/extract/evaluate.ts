@@ -1,7 +1,7 @@
 import * as errorParser from 'error-stack-parser';
 import { dirname } from 'path';
 import * as vm from 'vm';
-import { IParsedNode, ITestSymbols, NodeKind } from '.';
+import { IParsedNode, ITestSymbols, NodeKind } from '../extract';
 
 // node modules that we allow to be required. There are probably more we can
 // add as needed with greater or lesser confidence regarding side-effects.
