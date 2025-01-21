@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
               ? folders.length > 1
                 ? `Extension (${folder.name}: ${rel})`
                 : `Extension (${rel})`
-              : 'VS Code Extension (${folder.name})',
+              : `VS Code Extension (${folder.name})`,
           );
 
           ctrls.push(new Controller(ctrl, folder, smStore, file, runner, wrapperCfg));
