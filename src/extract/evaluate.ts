@@ -67,6 +67,11 @@ export const extractWithEvaluation = (file: string, code: string, symbols: ITest
   function placeholder(): unknown {
     const ph = new Proxy(placeholder, {
       get: (obj, target) => {
+        if (target === Symbol.toPrimitive) {
+          return (hint: any) => {
+            return hint === 'number' ? 0 : '';
+          };
+        }
         const desc = Object.getOwnPropertyDescriptor(obj, target);
         if (desc && !desc.writable && !desc.configurable) {
           return desc.value; // avoid invariant volation https://stackoverflow.com/q/75148897
