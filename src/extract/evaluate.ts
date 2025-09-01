@@ -19,6 +19,8 @@ const allowedNodeModules = [
   'zlib',
 ].flatMap((m) => [m, `node:${m}`]);
 
+const requiredModulesReplacedWithPlaceholders = new WeakSet<any>();
+
 /**
  * Honestly kind of amazed this works. We can use a Proxy as our globalThis
  * in a VM context, and mock *every* global. We use this to return arbitrary
@@ -41,10 +43,16 @@ export const extractWithEvaluation = (file: string, code: string, symbols: ITest
     // avoid side-effects:
     [
       'require',
-      () => (mod: string) =>
-        allowedNodeModules.some((m) => m === mod || mod.startsWith(m + '/'))
-          ? wrapImportedModule(require(mod))
-          : placeholder(),
+      () => (mod: string) => {
+        const isAllowed = allowedNodeModules.some((m) => m === mod || mod.startsWith(m + '/'));
+        if (isAllowed) {
+          return wrapImportedModule(require(mod));
+        } else {
+          const moduleWrapper = placeholder();
+          requiredModulesReplacedWithPlaceholders.add(moduleWrapper);
+          return moduleWrapper;
+        }
+      },
     ],
     ['process', placeholder],
     // avoid printing to the console from tests:
@@ -82,6 +90,7 @@ export const extractWithEvaluation = (file: string, code: string, symbols: ITest
         return placeholder() as object;
       },
       set: () => true,
+      getPrototypeOf: () => placeholder,
     });
     placeholders.add(ph);
     return ph;
@@ -92,13 +101,23 @@ export const extractWithEvaluation = (file: string, code: string, symbols: ITest
   function wrapImportedModule(obj: any): unknown {
     return new Proxy(obj, {
       get(target, prop, receiver) {
+        const config = Object.getOwnPropertyDescriptor(target, prop);
+        if (config && config.configurable === false && config.writable === false) {
+          // Accessing constants from a module like zlib.constants. Shouldn't be wrapped.
+          return target[prop];
+        }
         const value = Reflect.get(target, prop, receiver);
         if (typeof value === 'function') {
           return function (...args: any[]) {
-            return value.apply(
-              target,
-              args.map((arg) => (placeholders.has(arg) ? undefined : arg)),
-            );
+            try {
+              return value.apply(
+                target,
+                args.map((arg) => (placeholders.has(arg) ? undefined : arg)),
+              );
+            } catch {
+              // We don't want test extraction to fail because of an error.
+              return placeholder();
+            }
           };
         }
         if (value && typeof value === 'object') {
@@ -175,7 +194,18 @@ export const extractWithEvaluation = (file: string, code: string, symbols: ITest
       } else if (symbols.test.includes(prop as string)) {
         return testFunction;
       } else if (prop in target) {
-        return target[prop]; // top-level `var` defined get set on the contextObj
+        const originalValue = target[prop]; // top-level `var` defined get set on the contextObj
+        if (prop === '__toESM' && typeof originalValue === 'function') {
+          return (...args: any[]) => {
+            // If the module is a placeholder, return it directly.
+            if (requiredModulesReplacedWithPlaceholders.has(args[0])) {
+              return placeholder();
+            }
+            // Else return the original __toESM function applied to the arguments.
+            return originalValue(...args);
+          };
+        }
+        return originalValue;
       } else if (prop in globalThis || replacedGlobals.has(prop as string)) {
         return replacedGlobals.get(prop as string)?.() ?? (globalThis as any)[prop];
       } else {
