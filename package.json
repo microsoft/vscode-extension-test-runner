@@ -3,7 +3,7 @@
   "displayName": "Extension Test Runner",
   "description": "Runs tests in VS Code extensions",
   "publisher": "ms-vscode",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.88.0-insider"
@@ -151,7 +151,7 @@
     "enhanced-resolve": "^5.15.0",
     "error-stack-parser": "^2.1.4",
     "eslint-visitor-keys": "^3.4.3",
-    "istanbul-to-vscode": "^2.1.0",
+    "istanbul-to-vscode": "^2.1.1",
     "minimatch": "^9.0.3",
     "split2": "^4.2.0",
     "stacktrace-parser": "^0.1.10"
