@@ -138,19 +138,19 @@ export class Controller {
     const sourceMap = await smMaintainer.refresh(contents);
     const tags = includeViaConfigs.map((c) => new vscode.TestTag(`${c}`));
     const add = (
-      parent: vscode.TestItem,
+      parent: vscode.TestItem | undefined,
       node: IParsedNode,
       start: vscode.Location,
       end: vscode.Location,
     ): vscode.TestItem => {
-      let item = parent.children.get(node.name);
+      let item = parent?.children.get(node.name);
       if (!item) {
         item = this.ctrl.createTestItem(node.name, node.name, start.uri);
         item.tags = tags;
         testMetadata.set(item, {
           type: node.kind === NodeKind.Suite ? ItemType.Suite : ItemType.Test,
         });
-        parent.children.add(item);
+        parent?.children.add(item);
       }
       item.range = new vscode.Range(start.range.start, end.range.end);
       item.error = node.error;
@@ -184,6 +184,7 @@ export class Controller {
     // source file. This is probably a good assumption. Likewise we assume that a single
     // a single describe/test is not split between different files.
     const newTestsInFile = new Map<string, vscode.TestItem>();
+    let hasWebpackUris = false;
     for (const node of extracted.nodes) {
       const start = sourceMap.originalPositionFor(node.startLine, node.startColumn - 1);
       const end =
@@ -192,8 +193,15 @@ export class Controller {
           : start;
       const file = last(this.getContainingItemsForFile(start.uri, { compiledFile: uri, tags }))!
         .item!;
+      if (!hasWebpackUris && start.uri.scheme === 'webpack') {
+        hasWebpackUris = true;
+      }
       diagnosticCollection.delete(start.uri);
       newTestsInFile.set(node.name, add(file, node, start, end));
+    }
+
+    if (hasWebpackUris) {
+      vscode.window.showErrorMessage(vscode.l10n.t('The test source maps contain webpack:// URIs, which is not supported by this extension. Please adjust your source map configuration.'));
     }
 
     if (previous) {
