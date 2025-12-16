@@ -63,10 +63,14 @@ export const parseSourceMapURL = (path: vscode.Uri, sourceMapUrl: string) => {
     return smMappingAccessor(path, new TraceMap(decoder.decode(data.buffer), pathAsStr));
   }
 
-  const sourceMapPath = fileURLToPath(new URL(sourceMapUrl, pathAsStr).toString());
+  const smUrl = new URL(sourceMapUrl, pathAsStr);
+  if (smUrl.protocol !== 'file:') {
+    return identityMapping(path);
+  }
+
   try {
     return fs
-      .readFile(sourceMapPath, 'utf8')
+      .readFile(fileURLToPath(smUrl), 'utf8')
       .then((c) => smMappingAccessor(path, new TraceMap(c, pathAsStr)))
       .catch(() => identityMapping(path));
   } catch {

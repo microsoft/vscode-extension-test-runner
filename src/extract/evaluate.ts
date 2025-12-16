@@ -1,7 +1,7 @@
-import * as errorParser from 'error-stack-parser';
 import { dirname } from 'path';
 import * as vm from 'vm';
 import { IParsedNode, ITestSymbols, NodeKind } from '../extract';
+import { StackTraceLocation, StackTraceParser } from '../stackTraceParser';
 
 // node modules that we allow to be required. There are probably more we can
 // add as needed with greater or lesser confidence regarding side-effects.
@@ -135,17 +135,17 @@ export const extractWithEvaluation = (file: string, code: string, symbols: ITest
         return placeholder();
       }
 
-      const frame = errorParser.parse(new Error())[1];
-      if (!frame || !frame.lineNumber) {
+      const frame = [...new StackTraceParser(new Error().stack!)].filter(t => t instanceof StackTraceLocation)[1];
+      if (!frame || !frame.lineBase1) {
         return placeholder();
       }
 
-      const startLine = frame.lineNumber;
-      const startColumn = frame.columnNumber || 1;
+      const startLine = frame.lineBase1;
+      const startColumn = frame.columnBase1 || 1;
 
       // approximate the length of the test case:
       const functionLines = String(callback).split('\n');
-      const endLine = frame.lineNumber + functionLines.length - 1;
+      const endLine = frame.lineBase1 + functionLines.length - 1;
       let endColumn = functionLines[functionLines.length - 1].length;
       if (endLine === startLine) {
         endColumn = Number.MAX_SAFE_INTEGER; // assume it takes the entire line of a single-line test case

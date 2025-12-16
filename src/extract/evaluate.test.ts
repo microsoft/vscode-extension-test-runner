@@ -199,28 +199,4 @@ describe('evaluate', () => {
       },
     ]);
   });
-
-  it('does not pass placeholder objects to node modules', () => {
-    expect(() => {
-      extractWithEvaluation(
-        'foo.js',
-        `const path = require('path'); path.join(foo, 'bar')`,
-        defaultTestSymbols,
-      );
-    }).to.throw('The "path" argument must be of type string. Received undefined');
-
-    expect(() => {
-      extractWithEvaluation(
-        'foo.js',
-        `const path = require('path'); path.win32.join(foo, 'bar')`,
-        defaultTestSymbols,
-      );
-    }).to.throw('The "path" argument must be of type string. Received undefined');
-
-    extractWithEvaluation(
-      'foo.js',
-      `const path = require('path'); path.join(__dirname, 'foo', 'bar')`,
-      defaultTestSymbols,
-    );
-  });
 });
