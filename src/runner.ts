@@ -15,6 +15,7 @@ import { TestProcessExitedError } from './errors';
 import { ItemType, testMetadata } from './metadata';
 import { OutputQueue } from './outputQueue';
 import { SourceMapStore } from './source-map-store';
+import { StackTraceLocation, StackTraceParser } from './stackTraceParser';
 
 interface ISpawnOptions {
   configIndex: number;
@@ -249,7 +250,11 @@ export class TestRunner {
 
   private async runDebug({ args, config, onLine, token, configIndex }: ISpawnOptions) {
     const thisConfig = (
-      await config.captureCliJson<IResolvedConfiguration[]>([...args, '--timeout=0', '--list-configuration'])
+      await config.captureCliJson<IResolvedConfiguration[]>([
+        ...args,
+        '--timeout=0',
+        '--list-configuration',
+      ])
     )?.[0];
     if (token.isCancellationRequested || !thisConfig || token.isCancellationRequested) {
       return;
@@ -515,30 +520,29 @@ const locationRe = /(file:\/{3}.+):([0-9]+):([0-9]+)/g;
  * Replaces all stack frames in the stack with source-mapped equivalents.
  */
 async function sourcemapStack(store: SourceMapStore, str: string) {
-  locationRe.lastIndex = 0;
-
-  const replacements = await Promise.all(
-    [...str.matchAll(locationRe)].map(async (match) => {
-      const location = await deriveSourceLocation(store, match);
-      if (!location) {
-        return;
+  const parts = await Promise.all(
+    [...new StackTraceParser(str)].map(async (match) => {
+      if (!(match instanceof StackTraceLocation)) {
+        return match;
       }
-      return {
-        from: match[0],
-        to: location?.uri.with({
-          fragment: `L${location.range.start.line + 1}:${location.range.start.character + 1}`,
-        }),
-      };
+      const location = await deriveSourceLocation(
+        store,
+        match.path,
+        match.lineBase1,
+        match.columnBase1,
+      );
+
+      if (!location) {
+        return match.path;
+      }
+
+      return location.uri.with({
+        fragment: `L${location.range.start.line + 1}:${location.range.start.character + 1}`,
+      });
     }),
   );
 
-  for (const replacement of replacements) {
-    if (replacement) {
-      str = str.replace(replacement.from, replacement.to.toString(true));
-    }
-  }
-
-  return str;
+  return parts.join('') + '\r\n';
 }
 
 /**
@@ -549,7 +553,7 @@ async function replaceAllLocations(store: SourceMapStore, str: string) {
   let lastIndex = 0;
 
   for (const match of str.matchAll(locationRe)) {
-    const locationPromise = deriveSourceLocation(store, match);
+    const locationPromise = deriveSourceLocation(store, match[1], Number(match[2]), Number(match[3]));
     const startIndex = match.index || 0;
     const endIndex = startIndex + match[0].length;
 
@@ -590,7 +594,7 @@ async function tryDeriveStackLocation(
   locationRe.lastIndex = 0;
 
   return new Promise<vscode.Location | undefined>((resolve) => {
-    const matches = [...stack.matchAll(locationRe)];
+    const matches = [...new StackTraceParser(stack)].filter(m => m instanceof StackTraceLocation);
     let todo = matches.length;
     if (todo === 0) {
       return resolve(undefined);
@@ -598,7 +602,7 @@ async function tryDeriveStackLocation(
 
     let best: undefined | { location: vscode.Location; i: number; score: number };
     for (const [i, match] of matches.entries()) {
-      deriveSourceLocation(store, match)
+      deriveSourceLocation(store, match.path, match.lineBase1, match.columnBase1)
         .catch(() => undefined)
         .then((location) => {
           if (location) {
@@ -622,11 +626,15 @@ async function tryDeriveStackLocation(
   });
 }
 
-async function deriveSourceLocation(store: SourceMapStore, parts: RegExpMatchArray) {
-  const [, fileUriStr, line, col] = parts;
-  const fileUri = fileUriStr.startsWith('file:')
-    ? vscode.Uri.parse(fileUriStr)
-    : vscode.Uri.file(fileUriStr);
+async function deriveSourceLocation(
+  store: SourceMapStore,
+  fileUriOrPath: string,
+  line: number,
+  col: number,
+) {
+  const fileUri = fileUriOrPath.startsWith('file:')
+    ? vscode.Uri.parse(fileUriOrPath)
+    : vscode.Uri.file(fileUriOrPath);
   const maintainer = store.maintain(fileUri);
   const mapping = await (maintainer.value || maintainer.refresh());
   const value =
