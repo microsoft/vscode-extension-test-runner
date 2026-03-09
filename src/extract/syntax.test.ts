@@ -87,4 +87,42 @@ describe('syntax', () => {
     );
     expect(src).to.deep.equal([]);
   });
+
+  it('handles inconsistent indentation without misplacing nodes', () => {
+    // acorn-loose uses indentation heuristics that can misplace block
+    // boundaries when a line has extra indentation followed by a dedent.
+    // With the acorn-strict-first approach, well-formed JS is parsed
+    // correctly regardless of indentation.
+    const src = extractWithAst(
+      [
+        "suite('Root', function () {",
+        "    suite('A', function () {",
+        "        test('A1', function () {",
+        '            if (true) {',
+        '                    x();', // ← extra indent (20 spaces)
+        '                y();', // ← normal indent (16 spaces)
+        '            }',
+        '        });',
+        "        test('A2', function () {});",
+        '    });',
+        "    suite('B', function () {",
+        "        test('B1', function () {});",
+        '    });',
+        '});',
+      ].join('\n'),
+      defaultTestSymbols,
+    );
+
+    // Should produce a single root suite with two child suites
+    expect(src).to.have.length(1);
+    expect(src[0].name).to.equal('Root');
+    expect(src[0].children).to.have.length(2);
+    expect(src[0].children[0].name).to.equal('A');
+    expect(src[0].children[0].children).to.have.length(2);
+    expect(src[0].children[0].children[0].name).to.equal('A1');
+    expect(src[0].children[0].children[1].name).to.equal('A2');
+    expect(src[0].children[1].name).to.equal('B');
+    expect(src[0].children[1].children).to.have.length(1);
+    expect(src[0].children[1].children[0].name).to.equal('B1');
+  });
 });

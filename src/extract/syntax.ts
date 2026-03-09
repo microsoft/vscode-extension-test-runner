@@ -2,8 +2,8 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import type { Options } from 'acorn';
-import { parse } from 'acorn-loose';
+import { parse as strictParse, type Options } from 'acorn';
+import { parse as looseParse } from 'acorn-loose';
 import * as evk from 'eslint-visitor-keys';
 import { Node } from 'estree';
 import { IParsedNode, ITestSymbols, NodeKind } from '../extract';
@@ -57,14 +57,22 @@ const traverse = (
 };
 
 export const extractWithAst = (text: string, symbols: ITestSymbols) => {
-  const ast = parse(text, acornOptions);
+  let ast: Node;
+  try {
+    ast = strictParse(text, acornOptions) as unknown as Node;
+  } catch {
+    // Strict parse failed — fall back to the error-tolerant parser.
+    // Note: acorn-loose uses indentation heuristics that can misplace block
+    // boundaries when indentation is inconsistent.
+    ast = looseParse(text, acornOptions) as unknown as Node;
+  }
 
   const interestingName = (name: string) =>
     symbols.suite.includes(name)
       ? NodeKind.Suite
       : symbols.test.includes(name)
-      ? NodeKind.Test
-      : undefined;
+        ? NodeKind.Test
+        : undefined;
   const stack: { node: Node; r: IParsedNode }[] = [];
   stack.push({ node: undefined, r: { children: [] } } as any);
 
