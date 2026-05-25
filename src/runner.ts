@@ -5,6 +5,7 @@
 import { IDesktopTestConfiguration, MochaEvent, MochaEventTuple } from '@vscode/test-cli';
 import styles from 'ansi-styles';
 import { randomUUID } from 'crypto';
+import * as path from 'path';
 import split2 from 'split2';
 import * as vscode from 'vscode';
 import { ConfigValue } from './configValue';
@@ -632,9 +633,17 @@ async function deriveSourceLocation(
   line: number,
   col: number,
 ) {
-  const fileUri = fileUriOrPath.startsWith('file:')
-    ? vscode.Uri.parse(fileUriOrPath)
-    : vscode.Uri.file(fileUriOrPath);
+  let fileUri: vscode.Uri;
+  if (fileUriOrPath.startsWith('file:')) {
+    fileUri = vscode.Uri.parse(fileUriOrPath);
+  } else if (path.isAbsolute(fileUriOrPath)) {
+    fileUri = vscode.Uri.file(fileUriOrPath);
+  } else {
+    // Relative paths can appear in stack traces (e.g. from certain ts-node
+    // sourcemap configs). vscode.Uri can't represent a relative path and
+    // vscode.Uri.file would prepend a bogus '/', so skip this frame.
+    return undefined;
+  }
   const maintainer = store.maintain(fileUri);
   const mapping = await (maintainer.value || maintainer.refresh());
   const value =
