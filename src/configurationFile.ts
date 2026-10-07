@@ -26,6 +26,21 @@ const resolver = resolveModule.ResolverFactory.createResolver({
   conditionNames: ['node', 'require', 'module'],
 });
 
+const formatProcessOutput = (stdout: string, stderr: string) =>
+  [stderr && `stderr:\n${stderr}`, stdout && `stdout:\n${stdout}`].filter(Boolean).join('\n');
+
+export const parseCliJsonOutput = <T>(stdout: string, stderr: string): T => {
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    throw new ConfigProcessReadError(
+      [`invalid JSON on stdout: ${stdout}`, stderr && `stderr:\n${stderr}`]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+};
+
 export class ConfigurationFile implements vscode.Disposable {
   private readonly ds = new DisposableStore();
   private readonly didDeleteEmitter = this.ds.add(new vscode.EventEmitter<void>());
@@ -124,20 +139,22 @@ export class ConfigurationFile implements vscode.Disposable {
   public async captureCliJson<T>(args: readonly string[]) {
     const p = await this.spawnCli(args);
     return await new Promise<T>((resolve, reject) => {
-      const output: Buffer[] = [];
-      p.stdout.on('data', (chunk) => output.push(chunk));
-      p.stderr.on('data', (chunk) => output.push(chunk));
+      const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
+      p.stdout.on('data', (chunk) => stdout.push(chunk));
+      p.stderr.on('data', (chunk) => stderr.push(chunk));
       p.on('error', reject);
       p.on('close', (code) => {
-        const joined = Buffer.concat(output).toString();
+        const stdoutText = Buffer.concat(stdout).toString();
+        const stderrText = Buffer.concat(stderr).toString();
         if (code !== 0) {
-          return reject(new ConfigProcessReadError(joined));
+          return reject(new ConfigProcessReadError(formatProcessOutput(stdoutText, stderrText)));
         }
 
         try {
-          resolve(JSON.parse(joined));
-        } catch {
-          reject(new ConfigProcessReadError(`invalid JSON: ${joined}`));
+          resolve(parseCliJsonOutput(stdoutText, stderrText));
+        } catch (err) {
+          reject(err);
         }
       });
     });
