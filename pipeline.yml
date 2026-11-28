@@ -20,6 +20,9 @@ extends:
   template: azure-pipelines/extension/stable.yml@templates
   parameters:
     publishExtension: ${{ parameters.publishExtension }}
+    # APIScan's branch-control check only accepts these refs for push builds.
+    ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), and(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), notIn(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/tags/release'), not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')))) }}:
+      skipAPIScan: true
     vscePackageArgs: --no-dependencies
     ghCreateTag: false
     cgIgnoreDirectories: 'testCases,.vscode-test'
